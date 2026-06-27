@@ -9,6 +9,17 @@ router = Router()
 settings = get_settings()
 API_BASE = f"http://localhost:{settings.api_port}/api/v1"
 
+TARGET_HELP = {
+    "domain":   ("🌐", "WHOIS · DNS · Cert Transparency · IP Geo · HTTP"),
+    "url":      ("🔗", "WHOIS · DNS · Cert Transparency · IP Geo · HTTP"),
+    "ip":       ("🖥️", "IP Geolocation · Reverse DNS · ASN"),
+    "email":    ("📧", "Breach DB · Email Rep · Gravatar · MX · GitHub"),
+    "username": ("👤", "50+ platforms: GitHub · Twitter · Instagram · TikTok · Reddit…"),
+    "phone":    ("📞", "Carrier · Country · Line Type · Timezone · Validity"),
+    "image":    ("🖼️", "EXIF · GPS Coords · Camera Info · Reverse Search Links"),
+    "unknown":  ("❓", "Best-effort scan"),
+}
+
 
 @router.message(Command("investigate"))
 async def cmd_investigate(message: Message):
@@ -16,11 +27,14 @@ async def cmd_investigate(message: Message):
     if len(args) < 2 or not args[1].strip():
         await message.answer(
             "❌ Please provide a target.\n\n"
-            "*Usage:* `/investigate <target>`\n\n"
-            "*Examples:*\n"
-            "`/investigate github.com`\n"
-            "`/investigate 8.8.8.8`\n"
-            "`/investigate https://example.com`",
+            "*Supported targets:*\n"
+            "🌐 `/investigate github.com` — domain\n"
+            "🔗 `/investigate https://example.com` — URL\n"
+            "🖥️ `/investigate 8.8.8.8` — IP address\n"
+            "📧 `/investigate user@gmail.com` — email\n"
+            "👤 `/investigate @username` — username (50+ sites)\n"
+            "📞 `/investigate +14155552671` — phone number\n"
+            "🖼️ `/investigate https://example.com/photo.jpg` — image EXIF",
             parse_mode="Markdown",
         )
         return
@@ -32,14 +46,14 @@ async def cmd_investigate(message: Message):
         await message.answer("❌ Authentication failed. Please send /start and try again.")
         return
 
+    # Classify locally to show the right progress message
+    from plugins.runner import classify_target
+    target_type = classify_target(target)
+    emoji, plugins_desc = TARGET_HELP.get(target_type, ("🔍", "OSINT scan"))
+
     status_msg = await message.answer(
-        f"🔍 *Investigating:* `{target}`\n\n"
-        "⏳ Running OSINT plugins…\n"
-        "• WHOIS\n"
-        "• DNS records\n"
-        "• Certificate transparency\n"
-        "• IP geolocation\n"
-        "• HTTP metadata\n\n"
+        f"{emoji} *Investigating:* `{target}`\n\n"
+        f"⏳ Running: {plugins_desc}\n\n"
         "_Results will appear here when complete._",
         parse_mode="Markdown",
     )
@@ -57,15 +71,10 @@ async def cmd_investigate(message: Message):
                     data = await resp.json()
                     inv_id = data.get("id")
                     await status_msg.edit_text(
-                        f"🔍 *Investigating:* `{target}`\n\n"
-                        f"⏳ Investigation #{inv_id} is running…\n\n"
-                        "• WHOIS ⏳\n"
-                        "• DNS records ⏳\n"
-                        "• Certificate transparency ⏳\n"
-                        "• IP geolocation ⏳\n"
-                        "• HTTP metadata ⏳\n\n"
-                        f"_Check status: /status\\_{inv_id}_\n"
-                        "_Results auto-update when done._",
+                        f"{emoji} *Investigating:* `{target}`\n\n"
+                        f"⏳ *Investigation #{inv_id}* running…\n"
+                        f"Plugins: {plugins_desc}\n\n"
+                        f"_Check: /status\\_{inv_id} · Auto-updates when done_",
                         parse_mode="Markdown",
                     )
                 else:
@@ -102,11 +111,22 @@ async def cmd_status(message: Message):
 
         status = data.get("status", "unknown")
         target = data.get("target", "?")
-        emoji = {"pending": "⏳", "running": "🔄", "completed": "✅", "failed": "❌"}.get(status, "❓")
+        target_type = data.get("target_type", "?")
+        emoji, _ = TARGET_HELP.get(target_type, ("🔍", ""))
+        status_emoji = {"pending": "⏳", "running": "🔄", "completed": "✅", "failed": "❌"}.get(status, "❓")
 
-        text = f"{emoji} *Investigation #{inv_id}*\n\nTarget: `{target}`\nStatus: *{status}*"
+        text = (
+            f"{status_emoji} *Investigation #{inv_id}*\n\n"
+            f"{emoji} Target: `{target}` ({target_type})\n"
+            f"Status: *{status}*"
+        )
         if status == "completed":
-            text += f"\n\nView results: /results\\_{inv_id}"
+            evidence_count = len(data.get("evidence", []))
+            has_ai = any(e["plugin"] == "ai_analysis" for e in data.get("evidence", []))
+            text += f"\nEvidence items: {evidence_count}"
+            text += f"\n\n📄 /results\\_{inv_id}"
+            if has_ai:
+                text += f" | 🤖 /analyze\\_{inv_id}"
 
         await message.answer(text, parse_mode="Markdown")
     except Exception as e:

@@ -42,4 +42,9 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
-packages = ["cacert", "libxcrypt"]
+packages = ["cacert", "freetype", "lcms2", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "tcl", "tk", "xcodebuild", "zlib"]
+
+[userenv]
+
+[userenv.shared]
+GEMINI_API_KEY = "AQ.Ab8RN6L4KDO9Cae1Px-Bl31AuPpZAGoQSP3ahGV1WIAGoeh0HA"

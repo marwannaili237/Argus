@@ -100,3 +100,52 @@ async def get_investigation(
             for e in evidence
         ],
     }
+
+
+class AnalyzeRequest(BaseModel):
+    target: str
+    evidence: dict
+
+
+@router.post("/{inv_id}/analyze")
+async def analyze_investigation(
+    inv_id: int,
+    req: AnalyzeRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Investigation)
+        .where(Investigation.id == inv_id, Investigation.user_id == current_user.id)
+    )
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investigation not found")
+
+    from plugins.ai_analysis import AiAnalysisPlugin
+    plugin = AiAnalysisPlugin()
+    if not plugin._configured:
+        raise HTTPException(status_code=503, detail="AI analysis not configured — set GEMINI_API_KEY")
+
+    ai_result = await plugin.run(req.target, evidence_data=req.evidence)
+    if not ai_result.success:
+        raise HTTPException(status_code=500, detail=ai_result.error)
+
+    # Store as evidence
+    from sqlalchemy import delete
+    await db.execute(
+        delete(Evidence).where(
+            Evidence.investigation_id == inv_id,
+            Evidence.plugin_name == "ai_analysis"
+        )
+    )
+    ai_evidence = Evidence(
+        investigation_id=inv_id,
+        plugin_name="ai_analysis",
+        data=ai_result.data,
+    )
+    db.add(ai_evidence)
+    await db.commit()
+
+    return {"report": ai_result.data.get("report"), "model": ai_result.data.get("model")}
