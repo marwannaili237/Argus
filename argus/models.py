@@ -20,6 +20,7 @@ class User(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     investigations: Mapped[list["Investigation"]] = relationship(back_populates="user")
+    monitors: Mapped[list["Monitor"]] = relationship(back_populates="user")
 
 
 class Investigation(Base):
@@ -50,3 +51,24 @@ class Evidence(Base):
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     investigation: Mapped["Investigation"] = relationship(back_populates="evidence")
+
+
+class Monitor(Base):
+    __tablename__ = "monitors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    target: Mapped[str] = mapped_column(String(512), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    telegram_chat_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    schedule: Mapped[str] = mapped_column(String(16), default="daily")   # hourly | daily | weekly
+    interval_hours: Mapped[int] = mapped_column(Integer, default=24)
+    last_checked: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    next_check: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_hash: Mapped[str] = mapped_column(String(64), nullable=True)
+    last_investigation_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    change_count: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="monitors")
