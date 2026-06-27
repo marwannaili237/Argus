@@ -1,5 +1,5 @@
 from aiogram import Router
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 import aiohttp
 from config import get_settings
@@ -70,12 +70,23 @@ async def cmd_investigate(message: Message):
                 if resp.status in (200, 201):
                     data = await resp.json()
                     inv_id = data.get("id")
+                    running_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(
+                            text="⏳ Check Status",
+                            callback_data=f"argus_status_{inv_id}",
+                        ),
+                        InlineKeyboardButton(
+                            text="📜 History",
+                            callback_data="argus_history_0",
+                        ),
+                    ]])
                     await status_msg.edit_text(
                         f"{emoji} *Investigating:* `{target}`\n\n"
                         f"⏳ *Investigation #{inv_id}* running…\n"
                         f"Plugins: {plugins_desc}\n\n"
-                        f"_Check: /status\\_{inv_id} · Auto-updates when done_",
+                        f"_This message auto-updates when done._",
                         parse_mode="Markdown",
+                        reply_markup=running_kb,
                     )
                 else:
                     err = await resp.text()

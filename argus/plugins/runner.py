@@ -495,18 +495,31 @@ async def _notify_telegram(inv: Investigation, results, ai_report: str | None = 
     try:
         from config import get_settings
         import aiohttp
+        import json as _json
 
         settings = get_settings()
         if not settings.telegram_bot_token:
             return
 
         text = inv.summary or "Investigation completed."
-        text += f"\n\n✅ Done | /results\\_{inv.id}"
-        if ai_report:
-            text += f" | 🤖 /analyze\\_{inv.id}"
+        text += f"\n\n✅ *Done!* Use the buttons below:"
 
         if len(text) > 4000:
             text = text[:3997] + "…"
+
+        # Build inline keyboard
+        row1 = [
+            {"text": "📋 Full Results", "callback_data": f"argus_results_{inv.id}"},
+        ]
+        if ai_report:
+            row1.append({"text": "🤖 AI Report", "callback_data": f"argus_analyze_{inv.id}"})
+
+        row2 = [
+            {"text": "🔁 Re-investigate", "callback_data": f"argus_reinvest_{inv.id}"},
+            {"text": "📜 History", "callback_data": "argus_history_0"},
+        ]
+
+        reply_markup = _json.dumps({"inline_keyboard": [row1, row2]})
 
         url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/editMessageText"
         payload = {
@@ -514,6 +527,7 @@ async def _notify_telegram(inv: Investigation, results, ai_report: str | None = 
             "message_id": inv.telegram_message_id,
             "text": text,
             "parse_mode": "Markdown",
+            "reply_markup": reply_markup,
         }
         async with aiohttp.ClientSession() as session:
             await session.post(url, json=payload)

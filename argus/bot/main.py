@@ -4,6 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from bot.handlers import start, investigate, results
+from bot.handlers import callbacks
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,7 @@ async def start_bot(token: str):
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     dp = Dispatcher()
 
+    dp.include_router(callbacks.router)   # callbacks first — most specific
     dp.include_router(start.router)
     dp.include_router(investigate.router)
     dp.include_router(results.router)
