@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 from pydantic import BaseModel
 from database import get_db
 from models import User, Investigation
-from api.deps import get_current_user
+from api.deps import get_current_user, require_admin
 from api.auth import create_user_token
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -57,6 +57,35 @@ async def get_me(current_user: User = Depends(get_current_user), db: AsyncSessio
         "telegram_id": current_user.telegram_id,
         "username": current_user.username,
         "full_name": current_user.full_name,
+        "role": current_user.role,
+        "email_address": current_user.email_address,
         "investigations_total": total,
         "member_since": current_user.created_at.isoformat(),
     }
+
+
+class UpdateRoleRequest(BaseModel):
+    role: str
+
+
+@router.patch("/{user_id}/role")
+async def update_user_role(
+    user_id: int,
+    req: UpdateRoleRequest,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change a user's role. Admin only."""
+    valid_roles = {"admin", "analyst", "viewer"}
+    if req.role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = req.role
+    await db.commit()
+
+    return {"id": user.id, "telegram_id": user.telegram_id, "role": user.role}

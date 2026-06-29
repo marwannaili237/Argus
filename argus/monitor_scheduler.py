@@ -325,6 +325,17 @@ async def _run_monitor(monitor: Monitor, settings):
         if changes:
             logger.info(f"[Monitor #{monitor.id}] {len(changes)} change(s) detected for {monitor.target}")
             await _send_change_alert(monitor, changes, new_inv_id, settings)
+
+            # Task 10: Webhook notification
+            if monitor.webhook_url:
+                from notifiers.webhook import WebhookNotifier
+                webhook = WebhookNotifier(monitor.webhook_url)
+                await webhook.notify_monitor_alert(
+                    target=monitor.target,
+                    changes=changes,
+                    monitor_id=monitor.id,
+                    investigation_id=new_inv_id,
+                )
         else:
             logger.info(f"[Monitor #{monitor.id}] No changes for {monitor.target}")
 

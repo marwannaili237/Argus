@@ -18,7 +18,7 @@ class Base(DeclarativeBase):
 
 
 async def init_db():
-    from models import User, Investigation, Evidence
+    from models import User, Investigation, Evidence, Monitor, AuditLog, Webhook, InvestigationNote
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

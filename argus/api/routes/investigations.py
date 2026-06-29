@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from database import get_db
 from models import User, Investigation, Evidence
 from api.deps import get_current_user
+from api.rate_limit import rate_limit
 from plugins.runner import run_investigation
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
@@ -16,7 +17,7 @@ class StartInvestigationRequest(BaseModel):
     telegram_message_id: int | None = None
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(rate_limit(limit=30, window=60))])
 async def start_investigation(
     req: StartInvestigationRequest,
     background_tasks: BackgroundTasks,

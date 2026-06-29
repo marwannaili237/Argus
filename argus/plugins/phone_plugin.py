@@ -101,27 +101,63 @@ class PhonePlugin(BasePlugin):
 
         data["risk_flags"] = risk_flags
 
-        # Try numverify-style free lookup
-        loop = asyncio.get_event_loop()
-        additional = await _try_additional_lookup(e164)
+        # Try free carrier and caller ID lookups
+        additional = await _try_additional_lookups(e164, parsed)
         data.update(additional)
 
         return PluginResult(plugin_name=self.name, success=True, data=data)
 
 
-async def _try_additional_lookup(e164: str) -> dict:
+async def _try_additional_lookups(e164: str, parsed) -> dict:
     result = {}
+    tasks = [_try_numverify(e164), _try_hlr_lookup(e164)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for r in results:
+        if isinstance(r, dict) and r:
+            result.update(r)
+    return result
+
+
+async def _try_numverify(e164: str) -> dict:
+    """Numverify free tier — carrier, location, line type validation."""
     try:
-        # Abstract API phone validation (free tier)
-        url = f"https://phonevalidation.abstractapi.com/v1/?api_key=free&phone={e164}"
-        # Try a free carrier lookup service instead
-        number_clean = e164.replace("+", "")
-        # hlrlookup.com free check - no key needed for basic
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as s:
-            # Try apilayer numverify free check
-            lookup_url = f"https://api.apilayer.com/number_verification/validate?number={e164}"
-            # Fallback: just do a basic check
-            pass
+            async with s.get(
+                f"http://apilayer.net/api/validate?access_key=free&number={e164}",
+                headers=HEADERS,
+            ) as resp:
+                if resp.status == 200:
+                    d = await resp.json(content_type=None)
+                    if d.get("valid"):
+                        return {
+                            "caller_name": d.get("caller_name"),
+                            "location": d.get("location"),
+                            "carrier_extended": d.get("carrier"),
+                        }
     except Exception:
         pass
-    return result
+    return {}
+
+
+async def _try_hlr_lookup(e164: str) -> dict:
+    """Try free HLR-style lookup via phonevalidation.abstractapi.com or similar."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as s:
+            # Try free phonevalidation
+            async with s.get(
+                f"https://phonevalidation.abstractapi.com/v1/?api_key=test&phone={e164}",
+                headers=HEADERS,
+            ) as resp:
+                if resp.status == 200:
+                    d = await resp.json(content_type=None)
+                    if d.get("valid"):
+                        return {
+                            "carrier_hlr": d.get("carrier", {}).get("name"),
+                            "country_extended": d.get("country", {}).get("name"),
+                            "region": d.get("location"),
+                            "number_format": d.get("format", {}).get("international"),
+                            "is_voip": d.get("type") == "voip",
+                        }
+    except Exception:
+        pass
+    return {}

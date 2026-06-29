@@ -26,3 +26,18 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+
+
+def require_role(role: str):
+    """FastAPI dependency that requires the current user to have a specific role."""
+    async def _check(current_user: User = Depends(get_current_user)):
+        if current_user.role != role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires '{role}' role",
+            )
+        return current_user
+    return _check
+
+
+require_admin = require_role("admin")

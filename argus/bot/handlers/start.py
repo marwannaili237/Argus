@@ -1,5 +1,5 @@
-from aiogram import Router
-from aiogram.types import Message
+from aiogram import Router, F
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import CommandStart, Command
 import aiohttp
 from config import get_settings
@@ -43,7 +43,9 @@ async def cmd_start(message: Message):
             "📧 `user@gmail.com` — Email address\n"
             "👤 `@username` — Username (50+ platforms)\n"
             "📞 `+14155552671` — Phone number\n"
-            "🖼️ `https://site.com/photo.jpg` — Image EXIF\n\n"
+            "🖼️ `https://site.com/photo.jpg` — Image EXIF\n"
+            "🧑 `John Smith` — Person name\n"
+            "🏢 `Acme Corp` — Company name\n\n"
             "*⚡ Commands:*\n"
             "/investigate `<target>` — start OSINT scan\n"
             "/analyze `<id>` — 🤖 Gemini AI threat report\n"
@@ -59,6 +61,33 @@ async def cmd_start(message: Message):
             "⚠️ Could not connect to the API. Please try again in a moment."
         )
 
+    # Task 9: Quick-Reply Keyboard
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🌐 Domain"), KeyboardButton(text="🔗 URL"), KeyboardButton(text="🖥️ IP")],
+            [KeyboardButton(text="📧 Email"), KeyboardButton(text="👤 Username"), KeyboardButton(text="📞 Phone")],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False,
+    )
+    await message.answer(text, parse_mode="Markdown", reply_markup=keyboard)
+
+
+# Task 9: Handle quick-reply button presses
+TARGET_TYPE_PROMPTS = {
+    "🌐 Domain": ("🌐", "domain", "Send me a domain to investigate.\n\n*Example:* `github.com`\n*Example:* `example.org`"),
+    "🔗 URL": ("🔗", "url", "Send me a URL to investigate.\n\n*Example:* `https://example.com/page`"),
+    "🖥️ IP": ("🖥️", "ip", "Send me an IP address to investigate.\n\n*Example:* `8.8.8.8`"),
+    "📧 Email": ("📧", "email", "Send me an email address to investigate.\n\n*Example:* `user@gmail.com`"),
+    "👤 Username": ("👤", "username", "Send me a username to investigate.\n\n*Example:* `@elonmusk`\n*Example:* `username`"),
+    "📞 Phone": ("📞", "phone", "Send me a phone number to investigate.\n\n*Example:* `+14155552671`"),
+}
+
+
+@router.message(F.text.in_(TARGET_TYPE_PROMPTS))
+async def handle_quick_reply(message: Message):
+    prompt = TARGET_TYPE_PROMPTS[message.text]
+    emoji, target_type, text = prompt
     await message.answer(text, parse_mode="Markdown")
 
 
@@ -73,7 +102,9 @@ async def cmd_help(message: Message):
         "• `user@gmail.com` — Email OSINT\n"
         "• `@username` or `username` — Username hunt\n"
         "• `+14155552671` — Phone number lookup\n"
-        "• Image URL ending in .jpg/.png — EXIF forensics\n\n"
+        "• Image URL ending in .jpg/.png — EXIF forensics\n"
+        "• `John Smith` — Person name intelligence\n"
+        "• `Acme Corp` — Company name intelligence\n\n"
         "*⚡ Commands:*\n"
         "`/investigate <target>` — Run full OSINT scan\n"
         "`/analyze <id>` — 🤖 Gemini AI threat report\n"
@@ -81,11 +112,13 @@ async def cmd_help(message: Message):
         "`/status <id>` — Check investigation status\n"
         "`/history` — Your last 10 investigations\n\n"
         "*🔌 Plugins by target type:*\n"
-        "🌐 Domain/URL: WHOIS · DNS · Cert Transparency · IP Geo · HTTP\n"
-        "📧 Email: Reputation · Breach DB · Gravatar · MX check · GitHub\n"
-        "👤 Username: 50+ platforms (GitHub, X, Instagram, TikTok…)\n"
-        "📞 Phone: Carrier · Country · Line type · Timezone\n"
-        "🖼️ Image: EXIF · GPS · Camera · Reverse search links\n\n"
+        "🌐 Domain/URL: WHOIS · DNS · Certs · IP Geo · HTTP · Shodan · BGP · Subdomains · Wayback · Reputation · Passive DNS · Pastes · GitHub\n"
+        "📧 Email: Reputation · Breach DB · Social accounts · Gravatar · MX check · GitHub\n"
+        "👤 Username: 50+ platforms + Profile deep dive (GitHub, Reddit, HN, X)\n"
+        "📞 Phone: Carrier · Country · Line type · Timezone · Risk flags\n"
+        "🖼️ Image: EXIF · GPS · Camera · Reverse search links\n"
+        "🧑 Person: News · Companies · SEC filings · LinkedIn · Web search\n"
+        "🏢 Company: OpenCorporates · News · SEC EDGAR · LinkedIn\n\n"
         "*🤖 AI Analysis:*\n"
         "After every investigation, Gemini reads all the evidence and writes a professional threat intelligence report with risk assessment.\n\n"
         "_All data comes from free public sources. No paid APIs required._"

@@ -1,1 +1,0 @@
-- [Argus OSINT setup](argus-osint-setup.md) — Python FastAPI+bot lives in argus/, uses ARGUS_DB_URL not DATABASE_URL to avoid Postgres conflict.

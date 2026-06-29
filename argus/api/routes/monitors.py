@@ -24,11 +24,13 @@ class CreateMonitorRequest(BaseModel):
     target: str
     schedule: str = "daily"    # hourly | daily | weekly
     telegram_chat_id: int
+    webhook_url: str | None = None
 
 
 class UpdateMonitorRequest(BaseModel):
     active: bool | None = None
     schedule: str | None = None
+    webhook_url: str | None = None
 
 
 @router.post("")
@@ -64,6 +66,7 @@ async def create_monitor(
         interval_hours=interval,
         next_check=_utcnow() + timedelta(hours=interval),
         active=True,
+        webhook_url=req.webhook_url,
     )
     db.add(monitor)
     await db.commit()
@@ -130,9 +133,11 @@ async def update_monitor(
         monitor.schedule = req.schedule
         monitor.interval_hours = SCHEDULES[req.schedule]
         monitor.next_check = _utcnow() + timedelta(hours=monitor.interval_hours)
+    if req.webhook_url is not None:
+        monitor.webhook_url = req.webhook_url
 
     await db.commit()
-    return {"id": monitor.id, "active": monitor.active, "schedule": monitor.schedule}
+    return {"id": monitor.id, "active": monitor.active, "schedule": monitor.schedule, "webhook_url": monitor.webhook_url}
 
 
 @router.delete("/{monitor_id}")

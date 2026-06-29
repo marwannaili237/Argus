@@ -34,12 +34,61 @@ async def cmd_investigate(message: Message):
             "📧 `/investigate user@gmail.com` — email\n"
             "👤 `/investigate @username` — username (50+ sites)\n"
             "📞 `/investigate +14155552671` — phone number\n"
-            "🖼️ `/investigate https://example.com/photo.jpg` — image EXIF",
+            "🖼️ `/investigate https://example.com/photo.jpg` — image EXIF\n\n"
+            "_Tip: Pass multiple targets to investigate each: `\n"
+            "/investigate github.com 8.8.8.8 user@gmail.com`_",
             parse_mode="Markdown",
         )
         return
 
-    target = args[1].strip()
+    # Task 7: Multi-Target support — split by whitespace
+    raw_targets = args[1].strip().split()
+    targets = [t.strip() for t in raw_targets if t.strip()]
+
+    if len(targets) > 1:
+        # Multi-target mode
+        token = await get_or_create_token(message)
+        if not token:
+            await message.answer("❌ Authentication failed. Please send /start and try again.")
+            return
+
+        status_msg = await message.answer(
+            f"📦 *Starting {len(targets)} investigations…*\n\n"
+            + "\n".join(f"• `{t}`" for t in targets[:10])
+            + (f"\n… and {len(targets) - 10} more" if len(targets) > 10 else ""),
+            parse_mode="Markdown",
+        )
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {"Authorization": f"Bearer {token}"}
+                payload = {"targets": targets}
+                async with session.post(
+                    f"{API_BASE}/investigations/bulk",
+                    json=payload,
+                    headers=headers,
+                ) as resp:
+                    if resp.status not in (200, 201):
+                        err = await resp.text()
+                        await status_msg.edit_text(f"❌ Bulk investigation failed: {err}")
+                        return
+                    data = await resp.json()
+
+            ids = data.get("investigations", [])
+            count = data.get("count", 0)
+            await status_msg.edit_text(
+                f"✅ *{count} investigations started!*\n\n"
+                + "\n".join(f"  • #{i} `{targets[idx]}`" for idx, i in enumerate(ids[:15]))
+                + (f"\n  … and {count - 15} more" if count > 15 else "")
+                + "\n\n_Results will appear when each completes._",
+                parse_mode="Markdown",
+            )
+        except Exception as e:
+            await status_msg.edit_text(f"❌ Error: {e}")
+        return
+
+    # Single target — original flow
+    target = targets[0]
 
     token = await get_or_create_token(message)
     if not token:

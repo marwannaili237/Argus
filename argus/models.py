@@ -15,6 +15,8 @@ class User(Base):
     telegram_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     username: Mapped[str] = mapped_column(String(64), nullable=True)
     full_name: Mapped[str] = mapped_column(String(128), nullable=True)
+    email_address: Mapped[str] = mapped_column(String(256), nullable=True)
+    role: Mapped[str] = mapped_column(String(16), default="analyst")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
@@ -39,6 +41,7 @@ class Investigation(Base):
 
     user: Mapped["User"] = relationship(back_populates="investigations")
     evidence: Mapped[list["Evidence"]] = relationship(back_populates="investigation", cascade="all, delete-orphan")
+    notes: Mapped[list["InvestigationNote"]] = relationship(back_populates="investigation", cascade="all, delete-orphan")
 
 
 class Evidence(Base):
@@ -68,7 +71,44 @@ class Monitor(Base):
     last_hash: Mapped[str] = mapped_column(String(64), nullable=True)
     last_investigation_id: Mapped[int] = mapped_column(Integer, nullable=True)
     change_count: Mapped[int] = mapped_column(Integer, default=0)
+    webhook_url: Mapped[str] = mapped_column(String(512), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     user: Mapped["User"] = relationship(back_populates="monitors")
+
+
+class InvestigationNote(Base):
+    __tablename__ = "investigation_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    investigation_id: Mapped[int] = mapped_column(Integer, ForeignKey("investigations.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    investigation: Mapped["Investigation"] = relationship(back_populates="notes")
+
+
+class Webhook(Base):
+    __tablename__ = "webhooks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    url: Mapped[str] = mapped_column(String(512), nullable=False)
+    events: Mapped[dict] = mapped_column(JSON, nullable=False)  # list of event names
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(32), nullable=True)
+    target_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    details: Mapped[dict] = mapped_column(JSON, nullable=True)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
